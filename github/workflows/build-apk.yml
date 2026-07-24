@@ -1,1 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenmall Agent & Pickup Station Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800">
 
+  <div id="app" class="min-h-screen flex flex-col md:flex-row">
+
+    <!-- LOGIN SCREEN MODAL -->
+    <div v-if="!isLoggedIn" class="fixed inset-0 z-50 bg-slate-900 bg-opacity-95 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 border border-slate-200">
+        <div class="text-center mb-6">
+          <div class="inline-flex p-3 bg-orange-100 text-orange-600 rounded-full mb-3">
+            <i class="ph ph-storefront text-3xl"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-slate-800">Tenmall Station Agent</h2>
+          <p class="text-sm text-slate-500">Sign in to manage pickup station inventory</p>
+        </div>
+
+        <form @submit.prevent="handleLogin" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Station ID / Email</label>
+            <input v-model="loginForm.email" type="text" required placeholder="agent.cbd@tenmall.com" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password</label>
+            <input v-model="loginForm.password" type="password" required placeholder="••••••••" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500 outline-none">
+          </div>
+          <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2.5 rounded-lg shadow transition">
+            Access Station Dashboard
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside v-if="isLoggedIn" class="w-full md:w-64 bg-slate-900 text-slate-300 flex-shrink-0">
+      <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="bg-orange-600 text-white p-2 rounded-lg font-bold">TM</div>
+          <div>
+            <h1 class="text-base font-bold text-white leading-tight">Agent Portal</h1>
+            <p class="text-xs text-slate-400">{{ shopDetails.name }}</p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="p-4 space-y-1 text-sm font-medium">
+        <button @click="currentNav = 'dashboard'" :class="navClass('dashboard')">
+          <i class="ph ph-squares-four text-lg"></i> Overview & Details
+        </button>
+        <button @click="currentNav = 'inbound'" :class="navClass('inbound')">
+          <i class="ph ph-truck text-lg"></i> Pending Arrival
+        </button>
+        <button @click="currentNav = 'arrive'" :class="navClass('arrive')">
+          <i class="ph ph-package text-lg"></i> Scan / Receive Arrival
+        </button>
+        <button @click="currentNav = 'issue'" :class="navClass('issue')">
+          <i class="ph ph-hand-heart text-lg"></i> Pending Issue / Sign
+        </button>
+        <button @click="currentNav = 'signed'" :class="navClass('signed')">
+          <i class="ph ph-check-circle text-lg"></i> Signed Orders
+        </button>
+        <button @click="currentNav = 'reports'" :class="navClass('reports')">
+          <i class="ph ph-chart-bar text-lg"></i> Analytics & Reports
+        </button>
+        <button @click="currentNav = 'returns'" :class="navClass('returns')">
+          <i class="ph ph-arrows-left-right text-lg"></i> Returns Management
+        </button>
+        <button @click="currentNav = 'tracking'" :class="navClass('tracking')">
+          <i class="ph ph-magnifying-glass text-lg"></i> Order Tracking
+        </button>
+      </nav>
+
+      <div class="p-4 border-t border-slate-800">
+        <button @click="isLoggedIn = false" class="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 py-2 rounded text-xs text-rose-400 font-semibold transition">
+          <i class="ph ph-sign-out text-base"></i>
+          <span>Logout Station</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <main v-if="isLoggedIn" class="flex-1 overflow-y-auto p-4 md:p-8">
+      
+      <!-- TOP STATUS NOTIFICATION BAR -->
+      <div v-if="notificationMessage" class="mb-6 p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-3">
+          <i class="ph ph-bell-ringing text-xl text-emerald-600"></i>
+          <span class="text-sm font-semibold">{{ notificationMessage }}</span>
+        </div>
+        <button @click="notificationMessage = ''" class="text-emerald-500 hover:text-emerald-800">
+          <i class="ph ph-x font-bold"></i>
+        </button>
+      </div>
+
+      <!-- 1. SHOP DETAILS & OVERVIEW -->
+      <section v-if="currentNav === 'dashboard'" class="space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-2xl font-bold text-slate-800">Pickup Station Info</h2>
+          <button @click="editShopModal = true" class="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700">
+            Edit Station Profile
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Station Profile Card -->
+          <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:col-span-2 space-y-4">
+            <div class="border-b pb-4">
+              <h3 class="text-xl font-bold text-slate-800">{{ shopDetails.name }}</h3>
+              <p class="text-sm text-slate-500">Official Station Code: <span class="font-mono font-semibold text-slate-700">{{ shopDetails.code }}</span></p>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p class="text-xs text-slate-400 font-semibold uppercase">Primary Contact</p>
+                <p class="font-semibold text-slate-700">{{ shopDetails.contact }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-400 font-semibold uppercase">Alternate Emergency Contact</p>
+                <p class="font-semibold text-slate-700">{{ shopDetails.altContact }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-400 font-semibold uppercase">Location Address</p>
+                <p class="font-semibold text-slate-700">{{ shopDetails.location }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-400 font-semibold uppercase">Operating Hours & Days</p>
+                <p class="font-semibold text-slate-700">{{ shopDetails.operatingDays }}, {{ shopDetails.operatingHours }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Metrics -->
+          <div class="bg-slate-900 text-white p-6 rounded-xl shadow-sm flex flex-col justify-between">
+            <div>
+              <p class="text-xs font-semibold text-slate-400 uppercase">Station Capacity Status</p>
+              <p class="text-3xl font-extrabold mt-2 text-orange-400">{{ activePackagesCount }} / 200</p>
+              <p class="text-xs text-slate-400 mt-1">Packages currently on shelves</p>
+            </div>
+            <div class="pt-4 border-t border-slate-800 text-xs text-slate-400">
+              <p>Pending Pickups: <span class="text-white font-bold">{{ pendingIssueOrders.length }}</span></p>
+              <p>Returns Pending Dispatch: <span class="text-white font-bold">{{ returnDispatches.length }}</span></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. IN TRANSIT / PENDING ARRIVAL -->
+      <section v-if="currentNav === 'inbound'" class="space-y-4">
+        <h2 class="text-2xl font-bold text-slate-800">In-Transit Inbound Packages</h2>
+        <p class="text-sm text-slate-500">Items currently loaded on shipper vehicles heading toward this pickup station.</p>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-semibold border-b">
+              <tr>
+                <th class="p-4">Tracking ID</th>
+                <th class="p-4">Customer Name</th>
+                <th class="p-4">Dispatch Courier</th>
+                <th class="p-4">Est. Arrival</th>
+                <th class="p-4">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="order in inTransitOrders" :key="order.trackingNo" class="hover:bg-slate-50">
+                <td class="p-4 font-mono font-bold text-orange-600">{{ order.trackingNo }}</td>
+                <td class="p-4 font-medium">{{ order.customer }} <span class="block text-xs text-slate-400">{{ order.phone }}</span></td>
+                <td class="p-4">{{ order.courier }}</td>
+                <td class="p-4 text-slate-600">{{ order.estArrival }}</td>
+                <td class="p-4"><span class="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">In Transit</span></td>
+              </tr>
+              <tr v-if="inTransitOrders.length === 0">
+                <td colspan="5" class="p-6 text-center text-slate-400">No inbound deliveries currently en route.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3. ARRIVE ORDERS (SCAN & NOTIFY) -->
+      <section v-if="currentNav === 'arrive'" class="space-y-6">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-2xl font-bold text-slate-800">Arrive Packages at Station</h2>
+            <p class="text-sm text-slate-500">Check off or scan items to mark them present on shelf and alert buyers automatically.</p>
+          </div>
+        </div>
+
+        <!-- Scan Barcode Input -->
+        <div class="bg-orange-50 border border-orange-200 p-4 rounded-xl flex flex-col sm:flex-row gap-3 items-center">
+          <i class="ph ph-barcode text-3xl text-orange-600 hidden sm:block"></i>
+          <input v-model="scanInput" @keyup.enter="processScanArrival" type="text" placeholder="Scan or enter Tracking ID (e.g. TM-99101)..." class="flex-1 px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500 w-full">
+          <button @click="processScanArrival" class="bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-orange-700 w-full sm:w-auto">
+            Scan Arrival
+          </button>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-semibold border-b">
+              <tr>
+                <th class="p-4">Select</th>
+                <th class="p-4">Tracking ID</th>
+                <th class="p-4">Customer Details</th>
+                <th class="p-4">Package Item</th>
+                <th class="p-4">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="order in pendingArrivals" :key="order.trackingNo" class="hover:bg-slate-50">
+                <td class="p-4">
+                  <input type="checkbox" v-model="selectedForArrival" :value="order.trackingNo" class="w-4 h-4 text-orange-600 rounded">
+                </td>
+                <td class="p-4 font-mono font-bold text-slate-800">{{ order.trackingNo }}</td>
+                <td class="p-4">
+                  <div class="font-semibold">{{ order.customer }}</div>
+                  <div class="text-xs text-slate-400">{{ order.phone }}</div>
+                </td>
+                <td class="p-4">{{ order.item }}</td>
+                <td class="p-4">
+                  <button @click="markArrived([order.trackingNo])" class="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-emerald-700 flex items-center space-x-1">
+                    <i class="ph ph-check"></i>
+                    <span>Arrive & Notify</span>
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="pendingArrivals.length === 0">
+                <td colspan="5" class="p-6 text-center text-slate-400">All inbound items scanned and arrived!</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="selectedForArrival.length > 0" class="p-4 bg-slate-50 border-t flex justify-between items-center">
+            <span class="text-xs font-semibold text-slate-600">{{ selectedForArrival.length }} package(s) selected</span>
+            <button @click="markArrived(selectedForArrival)" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700">
+              Batch Arrive & Notify Buyers
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. PENDING ISSUE / SIGN -->
+      <section v-if="currentNav === 'issue'" class="space-y-6">
+        <div>
+          <h2 class="text-2xl font-bold text-slate-800">Pending Customer Pickup</h2>
+          <p class="text-sm text-slate-500">Packages currently sitting in station inventory awaiting buyer pickup.</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-semibold border-b">
+              <tr>
+                <th class="p-4">Tracking ID</th>
+                <th class="p-4">Customer</th>
+                <th class="p-4">Shelf Bin</th>
+                <th class="p-4">SMS Code</th>
+                <th class="p-4">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="order in pendingIssueOrders" :key="order.trackingNo" class="hover:bg-slate-50">
+                <td class="p-4 font-mono font-bold text-orange-600">{{ order.trackingNo }}</td>
+                <td class="p-4">
+                  <div class="font-semibold">{{ order.customer }}</div>
+                  <div class="text-xs text-slate-400">{{ order.phone }}</div>
+                </td>
+                <td class="p-4"><span class="bg-slate-100 font-mono text-slate-800 font-bold px-2 py-1 rounded">{{ order.bin }}</span></td>
+                <td class="p-4 font-mono font-bold text-indigo-600">{{ order.pickupPin }}</td>
+                <td class="p-4">
+                  <button @click="openSignModal(order)" class="bg-indigo-600 text-white px-3 py-1.5 rounded text-xs font-semibold hover:bg-indigo-700">
+                    Scan / Handover
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="pendingIssueOrders.length === 0">
+                <td colspan="5" class="p-6 text-center text-slate-400">No packages currently pending release.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 5. SIGNED ORDERS LOG -->
+      <section v-if="currentNav === 'signed'" class="space-y-4">
+        <h2 class="text-2xl font-bold text-slate-800">Signed & Released History</h2>
+        <p class="text-sm text-slate-500">Completed order handovers confirmed with customer signatures.</p>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-semibold border-b">
+              <tr>
+                <th class="p-4">Tracking ID</th>
+                <th class="p-4">Customer</th>
+                <th class="p-4">Handover Time</th>
+                <th class="p-4">Signed By</th>
+                <th class="p-4">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="order in signedOrders" :key="order.trackingNo" class="hover:bg-slate-50">
+                <td class="p-4 font-mono font-bold text-slate-700">{{ order.trackingNo }}</td>
+                <td class="p-4">{{ order.customer }}</td>
+                <td class="p-4 text-xs text-slate-500">{{ order.signedAt }}</td>
+                <td class="p-4 font-semibold text-slate-800">{{ order.recipientName }}</td>
+                <td class="p-4"><span class="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Released</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 6. ANALYTICS & REPORTS -->
+      <section v-if="currentNav === 'reports'" class="space-y-6">
+        <h2 class="text-2xl font-bold text-slate-800">Station Release Performance</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-5 rounded-xl border shadow-sm">
+            <p class="text-xs uppercase text-slate-400 font-bold">Today's Releases</p>
+            <p class="text-3xl font-black text-slate-800 mt-2">18 <span class="text-xs text-emerald-500 font-normal">+12% vs avg</span></p>
+          </div>
+          <div class="bg-white p-5 rounded-xl border shadow-sm">
+            <p class="text-xs uppercase text-slate-400 font-bold">This Week</p>
+            <p class="text-3xl font-black text-slate-800 mt-2">124</p>
+          </div>
+          <div class="bg-white p-5 rounded-xl border shadow-sm">
+            <p class="text-xs uppercase text-slate-400 font-bold">This Month</p>
+            <p class="text-3xl font-black text-slate-800 mt-2">542</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl border shadow-sm space-y-4">
+          <h3 class="font-bold text-slate-800">Generate Custom Report</h3>
+          <div class="flex flex-col sm:flex-row gap-4">
+            <select v-model="reportPeriod" class="px-3 py-2 border rounded-lg text-sm">
+              <option value="daily">Daily Summary Report</option>
+              <option value="weekly">Weekly Operational Summary</option>
+              <option value="monthly">Monthly Volume Audit</option>
+            </select>
+            <button @click="downloadReport" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 flex items-center justify-center space-x-2">
+              <i class="ph ph-download-simple"></i>
+              <span>Export CSV Report</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. AFTERSALES & RETURNS -->
+      <section v-if="currentNav === 'returns'" class="space-y-6">
+        <h2 class="text-2xl font-bold text-slate-800">Aftersales & Station Returns</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Intake Return -->
+          <div class="bg-white p-6 rounded-xl border shadow-sm space-y-4">
+            <h3 class="font-bold text-slate-800 text-lg">Receive Return from Customer</h3>
+            <form @submit.prevent="processReturnIntake" class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Tracking Number</label>
+                <input v-model="returnForm.trackingNo" type="text" required placeholder="TM-99881" class="w-full px-3 py-2 border rounded-lg text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1"
